@@ -1,73 +1,90 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/Ionicons';
+import FloatingCard from './water/FloatingCard';
+import IconBubble from './ui/IconBubble';
+import PressableScale from './ui/PressableScale';
+import AppIcon from './ui/AppIcon';
+import { colors, gradients, radius } from '../theme/theme';
 
 interface Props {
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
+  /** `true` renders a back button; a node renders custom left content. */
   left?: boolean | React.ReactNode;
+  /** Icon shown in a gradient bubble when there's no back button. */
+  icon?: string;
+  iconGradient?: string[];
 }
 
-export default function AppHeader({ title, subtitle, right, left }: Props) {
+/** Floating glass header that rests on the water like the cards below it. */
+export default function AppHeader({ title, subtitle, right, left, icon, iconGradient }: Props) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
 
-  const leftNode =
-    left === true ? (
-      <TouchableOpacity
+  let leftNode: React.ReactNode = null;
+  if (left === true) {
+    leftNode = (
+      <PressableScale
         style={styles.backBtn}
         onPress={() => navigation.goBack()}
+        accessibilityLabel="Quay lại"
+        hitSlop={8}
       >
-        <Text style={styles.backArrow}>
-          <Icon name="arrow-back" size={20}/>
-        </Text>
-      </TouchableOpacity>
-    ) : (
-      left ?? null
+        <AppIcon name="chevron-back" size={22} color={colors.primaryDark} />
+      </PressableScale>
     );
+  } else if (left) {
+    leftNode = left;
+  } else if (icon) {
+    leftNode = <IconBubble icon={icon} size={42} gradient={iconGradient ?? gradients.primary} />;
+  }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
-      <View style={styles.inner}>
+    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
+      <FloatingCard amplitude={2} index={0} style={styles.bar}>
         {leftNode}
-        <View
-          style={[
-            styles.textBlock,
-            leftNode ? styles.textBlockWithLeft : undefined,
-          ]}
-        >
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        <View style={[styles.textBlock, leftNode ? styles.textBlockWithLeft : undefined]}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
         </View>
         {right}
-      </View>
+      </FloatingCard>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1d4ed8',
-    paddingHorizontal: 20,
-    paddingBottom: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 6,
   },
-  inner: {
+  bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.xl,
+    backgroundColor: colors.glassStrong,
   },
-  textBlock: { flex: 1 },
-  textBlockWithLeft: { marginLeft: 12 },
-  title: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
-  subtitle: { fontSize: 13, color: '#93c5fd', fontWeight: '500', marginTop: 2 },
+  textBlock: { flex: 1, paddingHorizontal: 4 },
+  textBlockWithLeft: { marginLeft: 8 },
+  title: { fontSize: 19, fontWeight: '800', color: colors.ink, letterSpacing: 0.1 },
+  subtitle: { fontSize: 12.5, color: colors.muted, fontWeight: '600', marginTop: 1 },
   backBtn: {
-    width: 36,
-    height: 36,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backArrow: { fontSize: 28, color: '#ffffff', lineHeight: 32 },
 });

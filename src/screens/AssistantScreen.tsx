@@ -5,7 +5,6 @@ import {
   Easing,
   FlatList,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Modal,
   PermissionsAndroid,
@@ -14,17 +13,24 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Reanimated, { FadeInUp } from 'react-native-reanimated';
+import LinearGradient from 'react-native-linear-gradient';
 import AppHeader from '../components/AppHeader';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import {getStorageValue} from '../storage/storage';
 import axios from 'axios';
 import { SERVER_URL } from '@env';
 import RNFS from 'react-native-fs';
+import WaterScreen from '../components/water/WaterScreen';
+import FloatingCard from '../components/water/FloatingCard';
+import IconBubble from '../components/ui/IconBubble';
+import PressableScale from '../components/ui/PressableScale';
+import AppIcon from '../components/ui/AppIcon';
+import { useTabBarSpace } from '../navigation/FloatingTabBar';
+import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
+import { colors, floatShadow, glowShadow, gradients, radius, softShadow } from '../theme/theme';
 
 type Message = {
   id: string;
@@ -54,40 +60,44 @@ function TypingIndicator() {
   }, []);
 
   return (
-    <View style={typingStyles.bubble}>
-      {dots.map((dot, i) => (
-        <Animated.View
-          key={i}
-          style={[typingStyles.dot, { opacity: dot, transform: [{ translateY: dot.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] }]}
-        />
-      ))}
+    <View style={typingStyles.row}>
+      <IconBubble icon="water" size={30} rounded="circle" style={typingStyles.avatar} />
+      <View style={typingStyles.bubble}>
+        {dots.map((dot, i) => (
+          <Animated.View
+            key={i}
+            style={[typingStyles.dot, { opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }), transform: [{ translateY: dot.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] }]}
+          />
+        ))}
+      </View>
     </View>
   );
 }
 
 const typingStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 12,
+  },
+  avatar: { marginRight: 8, marginBottom: 2 },
   bubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    alignSelf: 'flex-start',
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
     borderRadius: 22,
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: 6,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginHorizontal: 20,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    paddingVertical: 15,
+    ...floatShadow,
   },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#6b7280',
+    backgroundColor: colors.primary,
     marginHorizontal: 3,
   },
 });
@@ -115,6 +125,8 @@ function AssistantScreen() {
   const [isBotTyping, setIsBotTyping] = useState(false);
   const flatListRef = useRef<FlatList<Message>>(null);
   const animationValue = React.useRef(new Animated.Value(0)).current;
+  const tabSpace = useTabBarSpace();
+  const keyboardVisible = useKeyboardVisible();
 
   const openMediaOptions = () => {
     animationValue.setValue(0);
@@ -271,20 +283,25 @@ function AssistantScreen() {
     setAttachedImageUri(asset.uri);
   };
 
+  const canSend = inputText.trim().length > 0 || !!attachedImageUri;
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <AppHeader title="Trợ lý AI" subtitle="Hỏi đáp về chất lượng nước" />
+    <WaterScreen>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-      <ImageBackground
-        source={require('../assets/ai_background.jpg')}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        <View style={styles.backgroundOverlay} />
+        <AppHeader
+          title="Trợ lý AI"
+          subtitle="Hỏi đáp về chất lượng nước"
+          icon="chatbubbles"
+          right={
+            <View style={styles.onlineChip}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.onlineText}>AI</Text>
+            </View>
+          }
+        />
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -295,166 +312,227 @@ function AssistantScreen() {
           keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           ListFooterComponent={isBotTyping ? <TypingIndicator /> : null}
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.messageBubble,
-                item.sender === 'user' ? styles.userBubble : styles.botBubble,
-                item.imageUri && !item.text ? styles.imageBubble : undefined,
-              ]}
-            >
-              {item.imageUri && (
-                <Image
-                  source={{ uri: item.imageUri }}
-                  style={styles.messageImage}
-                  resizeMode="cover"
-                />
-              )}
-              {item.text && (
-                <Text
+          renderItem={({ item }) => {
+            const isUser = item.sender === 'user';
+            const imageOnly = !!item.imageUri && !item.text;
+            return (
+              <Reanimated.View
+                entering={FadeInUp.duration(320)}
+                style={[styles.messageRow, isUser ? styles.messageRowUser : styles.messageRowBot]}
+              >
+                {!isUser && (
+                  <IconBubble icon="water" size={30} rounded="circle" style={styles.avatar} />
+                )}
+                <View
                   style={[
-                    styles.messageText,
-                    item.sender === 'user' && styles.userText,
-                    item.imageUri ? styles.textBelowImage : undefined,
+                    styles.messageBubble,
+                    isUser ? styles.userBubble : styles.botBubble,
+                    imageOnly ? styles.imageBubble : undefined,
                   ]}
                 >
-                  {item.text}
-                </Text>
-              )}
+                  {isUser && (
+                    <LinearGradient
+                      colors={gradients.primary}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[StyleSheet.absoluteFill, styles.userBubbleFill]}
+                    />
+                  )}
+                  {item.imageUri && (
+                    <Image
+                      source={{ uri: item.imageUri }}
+                      style={styles.messageImage}
+                      resizeMode="cover"
+                    />
+                  )}
+                  {item.text && (
+                    <Text
+                      style={[
+                        styles.messageText,
+                        isUser && styles.userText,
+                        item.imageUri ? styles.textBelowImage : undefined,
+                      ]}
+                    >
+                      {item.text}
+                    </Text>
+                  )}
+                </View>
+              </Reanimated.View>
+            );
+          }}
+        />
+
+        <FloatingCard
+          enter={false}
+          amplitude={1.5}
+          float={!keyboardVisible}
+          containerStyle={[
+            styles.inputBarWrap,
+            // Clears the tab bar plus the raised Scan button above it.
+            { marginBottom: keyboardVisible ? 8 : tabSpace + 14 },
+          ]}
+          style={styles.inputBar}
+        >
+          {attachedImageUri && (
+            <View style={styles.attachmentPreview}>
+              <Image
+                source={{ uri: attachedImageUri }}
+                style={styles.attachmentThumb}
+                resizeMode="cover"
+              />
+              <PressableScale
+                style={styles.attachmentRemove}
+                onPress={() => setAttachedImageUri(null)}
+                accessibilityLabel="Bỏ ảnh đính kèm"
+                hitSlop={8}
+              >
+                <AppIcon name="close" size={13} color={colors.white} />
+              </PressableScale>
             </View>
           )}
-        />
-      </ImageBackground>
+          <View style={styles.inputRow}>
+            <PressableScale
+              style={styles.plusButton}
+              onPress={openMediaOptions}
+              accessibilityLabel="Đính kèm ảnh"
+            >
+              <AppIcon name="add" size={26} color={colors.primaryDark} />
+            </PressableScale>
 
-      <View style={styles.inputBar}>
-        {attachedImageUri && (
-          <View style={styles.attachmentPreview}>
-            <Image
-              source={{ uri: attachedImageUri }}
-              style={styles.attachmentThumb}
-              resizeMode="cover"
+            <TextInput
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Nhập tin nhắn của bạn"
+              placeholderTextColor={colors.faint}
+              style={styles.textInput}
+              multiline
             />
-            <TouchableOpacity
-              style={styles.attachmentRemove}
-              onPress={() => setAttachedImageUri(null)}
+
+            <PressableScale
+              style={[styles.sendButton, canSend ? glowShadow : null, !canSend && styles.sendButtonIdle]}
+              onPress={handleSend}
+              scaleTo={0.88}
+              accessibilityLabel="Gửi"
             >
-              <Icon name="close" size={14} color="#ffffff" />
-            </TouchableOpacity>
+              {canSend && (
+                <LinearGradient
+                  colors={gradients.primary}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[StyleSheet.absoluteFill, styles.sendFill]}
+                />
+              )}
+              <AppIcon name="send" size={19} color={canSend ? colors.white : colors.faint} />
+            </PressableScale>
           </View>
-        )}
-        <View style={styles.inputRow}>
-          <TouchableOpacity
-            style={styles.plusButton}
-            onPress={openMediaOptions}
-          >
-            <Text style={styles.plusSign}>+</Text>
-          </TouchableOpacity>
+        </FloatingCard>
 
-          <TextInput
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Nhập tin nhắn của bạn"
-            placeholderTextColor="#9ca3af"
-            style={styles.textInput}
-            multiline
-          />
-
-          <Pressable style={styles.sendButton} onPress={handleSend}>
-            <Icon name="send" size={22} color="#2563eb" />
+        <Modal
+          visible={isModalVisible}
+          transparent
+          animationType="none"
+          onRequestClose={closeMediaOptions}
+        >
+          <Pressable style={styles.modalOverlay} onPress={closeMediaOptions}>
+            <Animated.View
+              style={[
+                styles.modalContent,
+                {
+                  opacity: animationValue,
+                  transform: [
+                    {
+                      translateY: animationValue.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [280, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitle}>Chọn nguồn ảnh</Text>
+              <PressableScale
+                style={[styles.modalOption, softShadow]}
+                scaleTo={0.97}
+                onPress={() => handleMediaOption('gallery')}
+              >
+                <IconBubble icon="images-outline" size={44} gradient={gradients.primary} />
+                <Text style={styles.modalOptionText}>Chọn từ thư viện</Text>
+                <AppIcon name="chevron-forward" size={18} color={colors.faint} />
+              </PressableScale>
+              <PressableScale
+                style={[styles.modalOption, softShadow]}
+                scaleTo={0.97}
+                onPress={() => handleMediaOption('camera')}
+              >
+                <IconBubble icon="camera-outline" size={44} gradient={gradients.coral} />
+                <Text style={styles.modalOptionText}>Chụp ảnh</Text>
+                <AppIcon name="chevron-forward" size={18} color={colors.faint} />
+              </PressableScale>
+            </Animated.View>
           </Pressable>
-        </View>
-      </View>
-
-      <Modal
-        visible={isModalVisible}
-        transparent
-        animationType="none"
-        onRequestClose={closeMediaOptions}
-      >
-        <Pressable style={styles.modalOverlay} onPress={closeMediaOptions}>
-          <Animated.View
-            style={[
-              styles.modalContent,
-              {
-                opacity: animationValue,
-                transform: [
-                  {
-                    translateY: animationValue.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [280, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <Text style={styles.modalTitle}>Chọn nguồn ảnh</Text>
-            <Pressable
-              style={styles.modalOption}
-              onPress={() => handleMediaOption('gallery')}
-            >
-              <Text style={styles.modalOptionText}>Chọn từ thư viện</Text>
-            </Pressable>
-            <Pressable
-              style={styles.modalOption}
-              onPress={() => handleMediaOption('camera')}
-            >
-              <Text style={styles.modalOptionText}>Chụp ảnh</Text>
-            </Pressable>
-          </Animated.View>
-        </Pressable>
-      </Modal>
+        </Modal>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </WaterScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  background: {
-    flex: 1,
-    justifyContent: 'center',
+  onlineChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.successSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  backgroundOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(248, 250, 255, 0.42)',
-  },
+  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
+  onlineText: { fontSize: 11.5, fontWeight: '900', color: colors.success },
   flatList: {
     flex: 1,
   },
   chatContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 140,
-    paddingTop: 24,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 12,
   },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 12,
+  },
+  messageRowUser: { justifyContent: 'flex-end' },
+  messageRowBot: { justifyContent: 'flex-start' },
+  avatar: { marginRight: 8, marginBottom: 2 },
   messageBubble: {
     borderRadius: 22,
-    padding: 16,
-    marginBottom: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     maxWidth: '80%',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    ...floatShadow,
   },
   userBubble: {
-    backgroundColor: '#1d4ed8',
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 6,
+  },
+  userBubbleFill: {
+    borderRadius: 22,
+    borderBottomRightRadius: 6,
   },
   botBubble: {
-    backgroundColor: '#ffffff',
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 4,
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
+    borderBottomLeftRadius: 6,
   },
   messageText: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#111827',
+    color: colors.ink,
   },
   userText: {
-    color: '#ffffff',
+    color: colors.white,
   },
   imageBubble: {
     padding: 4,
@@ -465,117 +543,119 @@ const styles = StyleSheet.create({
   messageImage: {
     width: 200,
     height: 200,
-    borderRadius: 14,
+    borderRadius: 18,
+  },
+  inputBarWrap: {
+    marginHorizontal: 14,
   },
   inputBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    flexDirection: 'column',
-    shadowColor: '#1f2937',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: -6 },
-    elevation: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 28,
+    backgroundColor: colors.glassStrong,
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
   attachmentPreview: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    margin: 4,
     marginBottom: 8,
   },
   attachmentThumb: {
     width: 64,
     height: 64,
-    borderRadius: 10,
+    borderRadius: 14,
   },
   attachmentRemove: {
     position: 'absolute',
     top: -6,
     left: 52,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#ef4444',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.danger,
+    borderWidth: 2,
+    borderColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
   plusButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
-    backgroundColor: '#dbeafe',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primarySoft,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
-  },
-  plusSign: {
-    fontSize: 28,
-    color: '#1d4ed8',
-    lineHeight: 30,
+    marginRight: 8,
   },
   textInput: {
     flex: 1,
-    minHeight: 46,
+    minHeight: 44,
     maxHeight: 110,
-    backgroundColor: '#f8fafc',
-    borderRadius: 18,
+    backgroundColor: colors.inputBg,
+    borderRadius: 22,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
     fontSize: 15,
-    color: '#111827',
+    color: colors.ink,
   },
   sendButton: {
-    marginLeft: 10,
-    width: 46,
-    height: 46,
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    marginLeft: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#1f2937',
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
   },
+  sendButtonIdle: {
+    backgroundColor: 'rgba(11,49,66,0.06)',
+  },
+  sendFill: { borderRadius: 22 },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+    backgroundColor: colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#ffffff',
-    padding: 22,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: colors.waterTop,
+    padding: 20,
+    paddingTop: 10,
+    paddingBottom: 30,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(10,162,184,0.35)',
+    marginBottom: 14,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 16,
+    fontWeight: '900',
+    color: colors.ink,
+    marginBottom: 14,
   },
   modalOption: {
-    backgroundColor: '#f8fafc',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    padding: 12,
+    borderRadius: radius.lg,
     marginBottom: 12,
   },
   modalOptionText: {
-    color: '#111827',
-    fontSize: 15,
+    flex: 1,
+    color: colors.ink,
+    fontSize: 15.5,
+    fontWeight: '700',
+    marginLeft: 14,
   },
 });
 

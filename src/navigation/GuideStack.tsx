@@ -1,5 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { colors } from '../theme/theme';
 import GuideScreen from '../screens/GuideScreen';
 import GuideDetailScreen from '../screens/GuideDetailScreen';
 
@@ -19,9 +20,9 @@ function GuideStack() {
     <Stack.Navigator
       initialRouteName="GuideMain"
       screenOptions={{
-        headerStyle: { backgroundColor: '#1d4ed8' },
-        headerTintColor: '#ffffff',
-        contentStyle: { backgroundColor: '#f8fafc' },
+        headerShown: false,
+        animation: 'slide_from_right',
+        contentStyle: { backgroundColor: colors.waterTop },
       }}
     >
       <Stack.Screen

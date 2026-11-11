@@ -1,9 +1,13 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
-import LinearGradient from 'react-native-linear-gradient';
 import AppHeader from '../components/AppHeader';
+import WaterScreen from '../components/water/WaterScreen';
+import FloatingCard from '../components/water/FloatingCard';
+import IconBubble from '../components/ui/IconBubble';
+import { useTabBarSpace } from '../navigation/FloatingTabBar';
+import { categoryColors, colors, radius } from '../theme/theme';
+import { GUIDE_ICONS } from '../theme/icons';
 
 type GuideDetailRouteProp = RouteProp<
   {
@@ -308,107 +312,165 @@ const GUIDE_DETAILS = {
   },
 };
 
+const CATEGORY_LABELS = {
+  cleaning: 'Làm sạch nước',
+  classification: 'Phân loại nước',
+  emergency: 'Khẩn cấp',
+} as const;
+
 function GuideDetailScreen({ route }: GuideDetailProps) {
-  const { guideId } = route.params;
+  const { guideId, category } = route.params;
   const guideDetail = GUIDE_DETAILS[guideId as keyof typeof GUIDE_DETAILS];
+  const tabSpace = useTabBarSpace();
+  const accent = categoryColors[category] ?? categoryColors.cleaning;
 
   if (!guideDetail) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <WaterScreen>
+        <AppHeader title="Hướng dẫn" left={true} />
         <View style={styles.errorContainer}>
+          <IconBubble icon="alert-circle-outline" size={60} rounded="circle" background={colors.glassStrong} color={colors.primary} />
           <Text style={styles.errorText}>
             Không tìm thấy thông tin hướng dẫn
           </Text>
         </View>
-      </SafeAreaView>
+      </WaterScreen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <AppHeader title={guideDetail.title} left={true} />
+    <WaterScreen>
+      <AppHeader
+        title={guideDetail.title}
+        subtitle={CATEGORY_LABELS[category]}
+        left={true}
+      />
 
       <ScrollView
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: tabSpace }]}
+        showsVerticalScrollIndicator={false}
       >
-        <LinearGradient
-          colors={['#1e3a8a', '#2563eb', '#93c5fd']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <FloatingCard
+          variant="gradient"
+          gradient={accent.gradient}
+          index={1}
+          amplitude={5}
           style={styles.header}
         >
-          <Text style={styles.headerIcon}>{guideDetail.icon}</Text>
-          <Text style={styles.headerTitle}>{guideDetail.title}</Text>
-        </LinearGradient>
-        {guideDetail.content.map((section, index) => (
-          <View key={index} style={styles.section}>
-            <Text style={styles.sectionHeading}>{section.heading}</Text>
-            <Text style={styles.sectionBody}>{section.body}</Text>
+          <View style={styles.headerIconHalo}>
+            <IconBubble
+              icon={GUIDE_ICONS[guideId] ?? 'water'}
+              size={72}
+              rounded="circle"
+              gradient={['rgba(255,255,255,0.4)', 'rgba(255,255,255,0.15)']}
+            />
           </View>
+          <Text style={styles.headerTitle}>{guideDetail.title}</Text>
+          <View style={styles.headerChip}>
+            <Text style={styles.headerChipText}>
+              {guideDetail.content.length} mục
+            </Text>
+          </View>
+        </FloatingCard>
+
+        {guideDetail.content.map((section, index) => (
+          <FloatingCard
+            key={index}
+            index={index + 2}
+            style={styles.section}
+            containerStyle={styles.sectionWrap}
+          >
+            <View style={styles.sectionHeadingRow}>
+              <View style={[styles.sectionNumber, { backgroundColor: accent.soft }]}>
+                <Text style={[styles.sectionNumberText, { color: accent.fg }]}>
+                  {index + 1}
+                </Text>
+              </View>
+              <Text style={styles.sectionHeading}>{section.heading}</Text>
+            </View>
+            <Text style={styles.sectionBody}>{section.body}</Text>
+          </FloatingCard>
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </WaterScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    gap: 14,
   },
   errorText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: colors.body,
     textAlign: 'center',
+    fontWeight: '600',
   },
   header: {
     padding: 24,
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: radius.xl,
+    marginBottom: 18,
   },
-  headerIcon: {
-    fontSize: 48,
-    marginBottom: 12,
+  headerIconHalo: {
+    padding: 8,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    marginBottom: 14,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '900',
+    color: colors.white,
     textAlign: 'center',
   },
+  headerChip: {
+    marginTop: 10,
+    backgroundColor: 'rgba(4,40,56,0.2)',
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  headerChipText: { color: colors.white, fontSize: 12.5, fontWeight: '800' },
   content: {
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
+    paddingHorizontal: 18,
+    paddingTop: 10,
   },
+  sectionWrap: { marginBottom: 14 },
   section: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    padding: 18,
   },
+  sectionHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  sectionNumber: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  sectionNumberText: { fontWeight: '900', fontSize: 14 },
   sectionHeading: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.ink,
   },
   sectionBody: {
-    fontSize: 16,
-    color: '#374151',
+    fontSize: 15,
+    color: colors.body,
     lineHeight: 24,
   },
 });

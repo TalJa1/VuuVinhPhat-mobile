@@ -1,5 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { colors } from '../theme/theme';
 import HomeScreen from '../screens/HomeScreen';
 import TopicDetailScreen from '../screens/TopicDetailScreen';
 
@@ -15,9 +16,9 @@ function HomeStack() {
     <Stack.Navigator
       initialRouteName="HomeMain"
       screenOptions={{
-        headerStyle: { backgroundColor: '#1d4ed8' },
-        headerTintColor: '#ffffff',
-        contentStyle: { backgroundColor: '#f8fafc' },
+        headerShown: false,
+        animation: 'slide_from_right',
+        contentStyle: { backgroundColor: colors.waterTop },
       }}
     >
       <Stack.Screen

@@ -1,4 +1,3 @@
-/* eslint-disable react-native/no-inline-styles */
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -6,7 +5,6 @@ import {
   Text,
   TextInput,
   ScrollView,
-  TouchableOpacity,
   Image,
   Alert,
   ActivityIndicator,
@@ -14,7 +12,7 @@ import {
   Platform,
   PermissionsAndroid,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import RNFS from 'react-native-fs';
@@ -24,6 +22,14 @@ import { SERVER_URL } from '@env';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { ScanStackParamList } from '../navigation/ScanStack';
+import AppHeader from '../components/AppHeader';
+import WaterScreen from '../components/water/WaterScreen';
+import FloatingCard from '../components/water/FloatingCard';
+import IconBubble from '../components/ui/IconBubble';
+import GradientButton from '../components/ui/GradientButton';
+import PressableScale from '../components/ui/PressableScale';
+import AppIcon from '../components/ui/AppIcon';
+import { colors, gradients, radius } from '../theme/theme';
 
 export const SCAN_HISTORY_KEY = '@ocr_scan_history';
 
@@ -59,6 +65,7 @@ type Props = {
 
 export default function OCRResultScreen({ navigation, route }: Props) {
   const { imageUri } = route.params;
+  const insets = useSafeAreaInsets();
   const [recognizing, setRecognizing] = useState(true);
   const [editedText, setEditedText] = useState('');
   const [saving, setSaving] = useState(false);
@@ -188,48 +195,50 @@ export default function OCRResultScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <WaterScreen>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Kết quả scan</Text>
-          <View style={{ width: 90 }} />
-        </View>
+        <AppHeader title="Kết quả scan" subtitle="Kiểm tra và lưu kết quả" icon="document-text-outline" />
 
         <ScrollView
-          style={{ flex: 1 }}
+          style={styles.flex}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* Image preview */}
-          <View style={styles.imageContainer}>
+          <FloatingCard index={1} amplitude={4} style={styles.imageCard} containerStyle={styles.cardGap}>
             <Image
               source={{ uri: imageUri }}
               style={styles.imagePreview}
               resizeMode="cover"
             />
             <View style={styles.imageBadge}>
-              <Text style={styles.imageBadgeText}>📷 Ảnh đã chụp</Text>
+              <AppIcon name="camera-outline" size={13} color={colors.white} />
+              <Text style={styles.imageBadgeText}>Ảnh đã chụp</Text>
             </View>
-          </View>
+          </FloatingCard>
 
-          {/* OCR result card */}
-          <View style={styles.resultCard}>
+          {/* OCR result card — stops bobbing once editable so typing is steady */}
+          <FloatingCard index={2} style={styles.resultCard} containerStyle={styles.cardGap} float={recognizing}>
             <View style={styles.resultCardHeader}>
-              <Text style={styles.resultCardTitle}>📄 Văn bản nhận diện</Text>
+              <View style={styles.cardTitleRow}>
+                <IconBubble icon="reader-outline" size={34} gradient={gradients.primary} />
+                <Text style={styles.resultCardTitle}>Văn bản nhận diện</Text>
+              </View>
               {!recognizing && (
-                <Text style={styles.editHint}>Nhấn để chỉnh sửa</Text>
+                <View style={styles.hintChip}>
+                  <AppIcon name="create-outline" size={12} color={colors.primaryDark} />
+                  <Text style={styles.editHint}>Nhấn để chỉnh sửa</Text>
+                </View>
               )}
             </View>
 
             {recognizing ? (
               <View style={styles.loadingOCR}>
-                <ActivityIndicator size="large" color="#1d4ed8" />
+                <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={styles.loadingText}>
                   Đang nhận diện văn bản...
                 </Text>
@@ -241,7 +250,7 @@ export default function OCRResultScreen({ navigation, route }: Props) {
               <>
                 {editedText.length === 0 && (
                   <View style={styles.emptyOCR}>
-                    <Text style={styles.emptyOCRIcon}>🔍</Text>
+                    <IconBubble icon="search" size={46} rounded="circle" background={colors.primarySoft} color={colors.primary} />
                     <Text style={styles.emptyOCRText}>
                       Không nhận diện được văn bản. Hãy thử chụp lại với ánh
                       sáng tốt hơn.
@@ -258,27 +267,36 @@ export default function OCRResultScreen({ navigation, route }: Props) {
                   multiline
                   textAlignVertical="top"
                   placeholder="Không có văn bản nào được nhận diện..."
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={colors.faint}
                   scrollEnabled={false}
                 />
                 <Text style={styles.charCount}>{charCount} ký tự</Text>
               </>
             )}
-          </View>
+          </FloatingCard>
 
           {/* Location card */}
-          <View style={styles.resultCard}>
+          <FloatingCard index={3} style={styles.resultCard} containerStyle={styles.cardGap} float={locating}>
             <View style={styles.resultCardHeader}>
-              <Text style={styles.resultCardTitle}>📍 Vị trí chụp</Text>
-              <TouchableOpacity onPress={fetchLocation} disabled={locating}>
+              <View style={styles.cardTitleRow}>
+                <IconBubble icon="location-outline" size={34} gradient={gradients.coral} />
+                <Text style={styles.resultCardTitle}>Vị trí chụp</Text>
+              </View>
+              <PressableScale
+                onPress={fetchLocation}
+                disabled={locating}
+                style={styles.hintChip}
+                accessibilityLabel="Lấy lại vị trí"
+              >
+                <AppIcon name="refresh-outline" size={12} color={colors.primaryDark} />
                 <Text style={styles.editHint}>
                   {locating ? 'Đang lấy vị trí...' : 'Lấy lại vị trí'}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
             {locating ? (
               <View style={styles.loadingOCR}>
-                <ActivityIndicator size="small" color="#1d4ed8" />
+                <ActivityIndicator size="small" color={colors.primary} />
                 <Text style={styles.loadingSubText}>Đang xác định vị trí...</Text>
               </View>
             ) : (
@@ -291,7 +309,7 @@ export default function OCRResultScreen({ navigation, route }: Props) {
                     onChangeText={setLatitude}
                     keyboardType="numbers-and-punctuation"
                     placeholder="—"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={colors.faint}
                   />
                 </View>
                 <View style={styles.locationField}>
@@ -302,134 +320,138 @@ export default function OCRResultScreen({ navigation, route }: Props) {
                     onChangeText={setLongitude}
                     keyboardType="numbers-and-punctuation"
                     placeholder="—"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={colors.faint}
                   />
                 </View>
               </View>
             )}
             {!!locationError && (
-              <Text style={styles.locationErrorText}>{locationError}</Text>
+              <View style={styles.locationErrorRow}>
+                <AppIcon name="warning-outline" size={14} color={colors.danger} />
+                <Text style={styles.locationErrorText}>{locationError}</Text>
+              </View>
             )}
-          </View>
+          </FloatingCard>
 
           {/* Metadata preview */}
           {!recognizing && (
-            <View style={styles.metaCard}>
-              <Text style={styles.metaTitle}>📋 Thông tin lưu trữ</Text>
+            <FloatingCard index={4} style={styles.metaCard}>
+              <View style={styles.cardTitleRow}>
+                <IconBubble icon="information-circle-outline" size={34} gradient={gradients.mint} />
+                <Text style={styles.resultCardTitle}>Thông tin lưu trữ</Text>
+              </View>
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>Thời gian:</Text>
                 <Text style={styles.metaValue}>
                   {new Date().toLocaleString('vi-VN')}
                 </Text>
               </View>
-              <View style={styles.metaRow}>
+              <View style={[styles.metaRow, styles.metaRowLast]}>
                 <Text style={styles.metaLabel}>Trạng thái:</Text>
-                <Text style={[styles.metaValue, { color: '#059669' }]}>
-                  ✓ Sẵn sàng lưu
-                </Text>
+                <View style={styles.readyChip}>
+                  <AppIcon name="checkmark-circle" size={14} color={colors.success} />
+                  <Text style={styles.readyText}>Sẵn sàng lưu</Text>
+                </View>
               </View>
-            </View>
+            </FloatingCard>
           )}
 
-          <View style={{ height: 20 }} />
+          <View style={styles.bottomSpacer} />
         </ScrollView>
 
         {/* Action buttons */}
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.discardBtn} onPress={handleDiscard}>
-            <Text style={styles.discardText}>Hủy</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.saveBtn,
-              (recognizing || saving) && styles.saveBtnDisabled,
-            ]}
+        <FloatingCard
+          enter={false}
+          amplitude={2}
+          containerStyle={[styles.actionsWrap, { marginBottom: Math.max(insets.bottom, 12) }]}
+          style={styles.actions}
+        >
+          <GradientButton
+            label="Hủy"
+            variant="ghost"
+            icon="close"
+            onPress={handleDiscard}
+            style={styles.discardBtn}
+          />
+          <GradientButton
+            label="Lưu vào lịch sử"
+            icon="save-outline"
             onPress={handleSave}
+            loading={saving}
             disabled={recognizing || saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.saveText}>💾 Lưu vào lịch sử</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            style={styles.saveBtn}
+          />
+        </FloatingCard>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </WaterScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  flex: { flex: 1 },
+  scrollContent: { paddingHorizontal: 18, paddingTop: 10 },
+  cardGap: { marginBottom: 16 },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1d4ed8',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  backBtn: { paddingVertical: 4 },
-  backText: { color: '#93c5fd', fontSize: 15, fontWeight: '600' },
-  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
-
-  scrollContent: { padding: 16 },
-
-  imageContainer: { marginBottom: 16, borderRadius: 16, overflow: 'hidden' },
+  imageCard: { padding: 8, borderRadius: radius.xl },
   imagePreview: {
     width: '100%',
     height: 220,
-    backgroundColor: '#e2e8f0',
+    borderRadius: radius.lg - 4,
+    backgroundColor: colors.primarySoft,
   },
   imageBadge: {
     position: 'absolute',
-    bottom: 10,
-    left: 12,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 10,
+    bottom: 18,
+    left: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(4,40,56,0.55)',
+    borderRadius: radius.pill,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
-  imageBadgeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  imageBadgeText: { color: colors.white, fontSize: 12, fontWeight: '700' },
 
   resultCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
   },
   resultCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  resultCardTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  editHint: { fontSize: 12, color: '#1d4ed8', fontWeight: '500' },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  resultCardTitle: { fontSize: 15.5, fontWeight: '800', color: colors.ink },
+  hintChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginLeft: 8,
+  },
+  editHint: { fontSize: 11.5, color: colors.primaryDark, fontWeight: '700' },
 
   loadingOCR: {
     alignItems: 'center',
-    paddingVertical: 32,
-    gap: 12,
+    paddingVertical: 28,
+    gap: 10,
   },
-  loadingText: { fontSize: 15, fontWeight: '600', color: '#374151' },
-  loadingSubText: { fontSize: 13, color: '#9ca3af' },
+  loadingText: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  loadingSubText: { fontSize: 13, color: colors.muted },
 
   emptyOCR: {
     alignItems: 'center',
-    paddingBottom: 8,
-    gap: 8,
+    paddingBottom: 12,
+    gap: 10,
   },
-  emptyOCRIcon: { fontSize: 32 },
   emptyOCRText: {
     fontSize: 13,
-    color: '#6b7280',
+    color: colors.body,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -437,20 +459,21 @@ const styles = StyleSheet.create({
   textInput: {
     minHeight: 130,
     fontSize: 15,
-    color: '#111827',
+    color: colors.ink,
     lineHeight: 24,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    padding: 12,
-    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: colors.inputBorder,
+    borderRadius: radius.md,
+    padding: 14,
+    backgroundColor: colors.inputBg,
   },
   textInputEmpty: { minHeight: 80 },
   charCount: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: colors.muted,
     textAlign: 'right',
     marginTop: 6,
+    fontWeight: '600',
   },
 
   locationRow: {
@@ -460,84 +483,68 @@ const styles = StyleSheet.create({
   locationField: { flex: 1 },
   locationLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    color: colors.muted,
     marginBottom: 6,
-    fontWeight: '500',
+    fontWeight: '700',
   },
   locationInput: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.inputBorder,
+    borderRadius: radius.sm,
     padding: 10,
     fontSize: 14,
-    color: '#111827',
-    backgroundColor: '#f8fafc',
+    color: colors.ink,
+    backgroundColor: colors.inputBg,
   },
+  locationErrorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
   locationErrorText: {
+    flex: 1,
     fontSize: 12,
-    color: '#dc2626',
-    marginTop: 10,
+    color: colors.danger,
+    fontWeight: '600',
   },
 
   metaCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
     padding: 16,
-    marginBottom: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  metaTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#374151',
-    marginBottom: 10,
   },
   metaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 5,
+    alignItems: 'center',
+    paddingVertical: 9,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.line,
   },
-  metaLabel: { fontSize: 13, color: '#6b7280' },
+  metaRowLast: { borderBottomWidth: 0, paddingBottom: 0 },
+  metaLabel: { fontSize: 13, color: colors.muted, fontWeight: '600' },
   metaValue: {
     fontSize: 13,
-    color: '#111827',
-    fontWeight: '500',
+    color: colors.ink,
+    fontWeight: '700',
     flexShrink: 1,
     textAlign: 'right',
     marginLeft: 8,
   },
+  readyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.successSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  readyText: { fontSize: 12.5, color: colors.success, fontWeight: '800' },
+  bottomSpacer: { height: 20 },
 
+  actionsWrap: { marginHorizontal: 16, marginTop: 4 },
   actions: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    gap: 10,
+    padding: 10,
+    borderRadius: radius.xl,
+    backgroundColor: colors.glassStrong,
   },
-  discardBtn: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  discardText: { color: '#6b7280', fontSize: 15, fontWeight: '600' },
-  saveBtn: {
-    flex: 2,
-    backgroundColor: '#1d4ed8',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  saveBtnDisabled: { backgroundColor: '#93c5fd' },
-  saveText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  discardBtn: { flex: 1 },
+  saveBtn: { flex: 2 },
 });

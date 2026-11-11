@@ -1,5 +1,4 @@
 /* eslint-disable react-native/no-inline-styles */
-/* eslint-disable react/no-unstable-nested-components */
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
@@ -15,14 +14,24 @@ import {
   ScrollView,
   ActivityIndicator,
   TextInput,
+  Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
+import LinearGradient from 'react-native-linear-gradient';
 import AppHeader from '../components/AppHeader';
 import { useFocusEffect } from '@react-navigation/native';
 import { SCAN_HISTORY_KEY } from './OCRResultScreen';
 import type { ScanRecord } from './OCRResultScreen';
+import WaterScreen from '../components/water/WaterScreen';
+import FloatingCard from '../components/water/FloatingCard';
+import IconBubble from '../components/ui/IconBubble';
+import GradientButton from '../components/ui/GradientButton';
+import PressableScale from '../components/ui/PressableScale';
+import AppIcon from '../components/ui/AppIcon';
+import { useTabBarSpace } from '../navigation/FloatingTabBar';
+import { colors, glowShadow, gradients, radius } from '../theme/theme';
 
 type MapPoint = { latitude: number; longitude: number; label?: string };
 
@@ -92,6 +101,8 @@ export default function ScanHistoryScreen() {
   const [editText, setEditText] = useState('');
   const [saving, setSaving] = useState(false);
   const [mapPoints, setMapPoints] = useState<MapPoint[] | null>(null);
+  const tabSpace = useTabBarSpace();
+  const insets = useSafeAreaInsets();
 
   const locationPoints = useMemo<MapPoint[]>(
     () =>
@@ -214,11 +225,13 @@ export default function ScanHistoryScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: ScanRecord }) => (
-    <TouchableOpacity
+  const renderItem = ({ item, index }: { item: ScanRecord; index: number }) => (
+    <FloatingCard
+      index={index}
       style={styles.card}
+      containerStyle={styles.cardWrap}
       onPress={() => openDetail(item)}
-      activeOpacity={0.8}
+      accessibilityLabel={`Scan ${formatDate(item.takenAt)} ${formatTime(item.takenAt)}`}
     >
       <Image
         source={{ uri: item.imageUri }}
@@ -228,77 +241,91 @@ export default function ScanHistoryScreen() {
       <View style={styles.cardContent}>
         <View style={styles.cardDateRow}>
           <View style={styles.dateChip}>
-            <Text style={styles.cardDate}>📅 {formatDate(item.takenAt)}</Text>
+            <AppIcon name="calendar-outline" size={12} color={colors.primaryDark} />
+            <Text style={styles.cardDate}>{formatDate(item.takenAt)}</Text>
           </View>
           <View style={styles.timeChip}>
-            <Text style={styles.cardTime}>🕒 {formatTime(item.takenAt)}</Text>
+            <AppIcon name="time-outline" size={12} color={colors.body} />
+            <Text style={styles.cardTime}>{formatTime(item.takenAt)}</Text>
           </View>
         </View>
         <Text style={styles.cardText}>{textPreview(item.text)}</Text>
         {item.latitude != null && item.longitude != null && (
-          <TouchableOpacity
+          <PressableScale
             style={styles.locationBadge}
             onPress={() =>
               setMapPoints([{ latitude: item.latitude as number, longitude: item.longitude as number }])
             }
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            accessibilityLabel="Xem vị trí trên bản đồ"
           >
+            <AppIcon name="location" size={12} color={colors.primaryDark} />
             <Text style={styles.locationBadgeText}>
-              📍 {item.latitude.toFixed(5)}, {item.longitude.toFixed(5)}
+              {item.latitude.toFixed(5)}, {item.longitude.toFixed(5)}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
         <View style={styles.cardFooter}>
-          <Text style={styles.cardChars}>{item.text.length} ký tự</Text>
-          <TouchableOpacity
+          <View style={styles.charsRow}>
+            <AppIcon name="text-outline" size={12} color={colors.faint} />
+            <Text style={styles.cardChars}>{item.text.length} ký tự</Text>
+          </View>
+          <PressableScale
             style={styles.deleteBtn}
             onPress={() => handleDelete(item.id)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Xoá bản ghi"
           >
-            <Text style={styles.deleteBtnText}>🗑️ Xoá</Text>
-          </TouchableOpacity>
+            <AppIcon name="trash-outline" size={13} color={colors.danger} />
+            <Text style={styles.deleteBtnText}>Xoá</Text>
+          </PressableScale>
         </View>
       </View>
-    </TouchableOpacity>
+    </FloatingCard>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <WaterScreen>
       <AppHeader
         title="Lịch sử Scan"
         subtitle={records.length > 0 ? `${records.length} kết quả đã lưu` : 'Chưa có bản ghi nào'}
+        icon="time"
         right={
           records.length > 0 ? (
-            <TouchableOpacity style={styles.clearAllBtn} onPress={handleClearAll}>
+            <PressableScale
+              style={styles.clearAllBtn}
+              onPress={handleClearAll}
+              accessibilityLabel="Xoá tất cả"
+            >
+              <AppIcon name="trash-outline" size={14} color={colors.danger} />
               <Text style={styles.clearAllText}>Xoá tất cả</Text>
-            </TouchableOpacity>
+            </PressableScale>
           ) : undefined
         }
       />
 
       {loading ? (
         <View style={styles.centred}>
-          <ActivityIndicator size="large" color="#1d4ed8" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.centredText}>Đang tải...</Text>
         </View>
       ) : records.length === 0 ? (
-        <View style={styles.centred}>
-          <View style={styles.emptyIconWrap}>
-            <Text style={styles.emptyIcon}>📭</Text>
-          </View>
-          <Text style={styles.emptyTitle}>Chưa có lịch sử scan</Text>
-          <Text style={styles.emptySub}>
-            Hãy dùng tab Scan để chụp ảnh và nhận diện văn bản.
-          </Text>
+        <View style={[styles.centred, { paddingBottom: tabSpace }]}>
+          <FloatingCard style={styles.emptyCard} amplitude={6}>
+            <IconBubble icon="file-tray-outline" size={84} rounded="circle" gradient={gradients.primary} style={styles.emptyIcon} />
+            <Text style={styles.emptyTitle}>Chưa có lịch sử scan</Text>
+            <Text style={styles.emptySub}>
+              Hãy dùng tab Scan để chụp ảnh và nhận diện văn bản.
+            </Text>
+          </FloatingCard>
         </View>
       ) : (
         <FlatList
           data={records}
           keyExtractor={item => item.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabSpace + 70 }]}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
         />
       )}
 
@@ -307,6 +334,7 @@ export default function ScanHistoryScreen() {
         <Animated.View
           style={[
             styles.fabWrap,
+            { bottom: tabSpace - 4 },
             {
               opacity: fabEntrance,
               transform: [
@@ -342,7 +370,7 @@ export default function ScanHistoryScreen() {
             ]}
           />
           <TouchableOpacity
-            style={styles.fab}
+            style={[styles.fab, glowShadow]}
             activeOpacity={0.9}
             onPress={() => setMapPoints(locationPoints)}
             onPressIn={() => animateFabPress(0.92)}
@@ -350,7 +378,13 @@ export default function ScanHistoryScreen() {
             accessibilityRole="button"
             accessibilityLabel="Xem tất cả vị trí trên bản đồ"
           >
-            <Text style={styles.fabIcon}>🗺️</Text>
+            <LinearGradient
+              colors={gradients.primary}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.fabFill}
+            />
+            <AppIcon name="map" size={25} color={colors.white} />
             <View style={styles.fabBadge}>
               <Text style={styles.fabBadgeText}>{locationPoints.length}</Text>
             </View>
@@ -366,14 +400,22 @@ export default function ScanHistoryScreen() {
         onRequestClose={() => setSelected(null)}
       >
         <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelected(null)} />
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             {/* Modal header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chi tiết scan</Text>
-              <TouchableOpacity onPress={() => setSelected(null)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
+              <View style={styles.modalTitleRow}>
+                <IconBubble icon="document-text-outline" size={36} gradient={gradients.primary} />
+                <Text style={styles.modalTitle}>Chi tiết scan</Text>
+              </View>
+              <PressableScale
+                style={styles.modalClose}
+                onPress={() => setSelected(null)}
+                accessibilityLabel="Đóng"
+              >
+                <AppIcon name="close" size={18} color={colors.body} />
+              </PressableScale>
             </View>
 
             <ScrollView
@@ -389,13 +431,19 @@ export default function ScanHistoryScreen() {
                     resizeMode="cover"
                   />
                   <View style={styles.modalMeta}>
-                    <Text style={styles.modalMetaText}>
-                      📅 {formatDate(selected.takenAt)}  🕒 {formatTime(selected.takenAt)}
-                    </Text>
+                    <View style={styles.modalMetaItem}>
+                      <AppIcon name="calendar-outline" size={14} color={colors.primaryDark} />
+                      <Text style={styles.modalMetaText}>{formatDate(selected.takenAt)}</Text>
+                    </View>
+                    <View style={styles.modalMetaItem}>
+                      <AppIcon name="time-outline" size={14} color={colors.primaryDark} />
+                      <Text style={styles.modalMetaText}>{formatTime(selected.takenAt)}</Text>
+                    </View>
                   </View>
                   {selected.latitude != null && selected.longitude != null && (
-                    <TouchableOpacity
+                    <PressableScale
                       style={styles.modalLocationRow}
+                      scaleTo={0.97}
                       onPress={() =>
                         setMapPoints([
                           {
@@ -405,13 +453,18 @@ export default function ScanHistoryScreen() {
                         ])
                       }
                     >
+                      <AppIcon name="location" size={16} color={colors.primaryDark} />
                       <Text style={styles.modalLocationText}>
-                        📍 {selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)}
+                        {selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)}
                       </Text>
-                      <Text style={styles.modalLocationLink}>Xem bản đồ ›</Text>
-                    </TouchableOpacity>
+                      <Text style={styles.modalLocationLink}>Xem bản đồ</Text>
+                      <AppIcon name="chevron-forward" size={14} color={colors.primaryDark} />
+                    </PressableScale>
                   )}
-                  <Text style={styles.modalSectionTitle}>Văn bản (có thể chỉnh sửa)</Text>
+                  <View style={styles.modalSectionRow}>
+                    <AppIcon name="create-outline" size={15} color={colors.body} />
+                    <Text style={styles.modalSectionTitle}>Văn bản (có thể chỉnh sửa)</Text>
+                  </View>
                   <TextInput
                     style={styles.modalTextInput}
                     value={editText}
@@ -419,29 +472,28 @@ export default function ScanHistoryScreen() {
                     multiline
                     textAlignVertical="top"
                     placeholder="Không có văn bản..."
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={colors.faint}
                   />
                   <Text style={styles.modalCharCount}>{editText.length} ký tự</Text>
                 </>
               )}
             </ScrollView>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
+            <View style={[styles.modalActions, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+              <GradientButton
+                label="Đóng"
+                variant="ghost"
                 onPress={() => setSelected(null)}
-              >
-                <Text style={styles.modalCancelText}>Đóng</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalSaveBtn, saving && { opacity: 0.6 }]}
+                style={{ flex: 1 }}
+              />
+              <GradientButton
+                label="Lưu chỉnh sửa"
+                icon="save-outline"
                 onPress={handleUpdateText}
+                loading={saving}
                 disabled={saving}
-              >
-                {saving
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.modalSaveText}>💾 Lưu chỉnh sửa</Text>}
-              </TouchableOpacity>
+                style={{ flex: 2 }}
+              />
             </View>
           </View>
         </View>
@@ -455,88 +507,88 @@ export default function ScanHistoryScreen() {
         onRequestClose={() => setMapPoints(null)}
       >
         <View style={styles.mapModalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setMapPoints(null)} />
           <View style={styles.mapModalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {mapPoints && mapPoints.length > 1
-                  ? `Tất cả vị trí (${mapPoints.length})`
-                  : 'Vị trí trên bản đồ'}
-              </Text>
-              <TouchableOpacity onPress={() => setMapPoints(null)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
+              <View style={styles.modalTitleRow}>
+                <IconBubble icon="map-outline" size={36} gradient={gradients.coral} />
+                <Text style={styles.modalTitle}>
+                  {mapPoints && mapPoints.length > 1
+                    ? `Tất cả vị trí (${mapPoints.length})`
+                    : 'Vị trí trên bản đồ'}
+                </Text>
+              </View>
+              <PressableScale
+                style={styles.modalClose}
+                onPress={() => setMapPoints(null)}
+                accessibilityLabel="Đóng"
+              >
+                <AppIcon name="close" size={18} color={colors.body} />
+              </PressableScale>
             </View>
             {mapPoints && (
-              <WebView
-                style={styles.mapWebView}
-                originWhitelist={['*']}
-                source={{ html: buildMapHtml(mapPoints) }}
-              />
+              <View style={styles.mapFrame}>
+                <WebView
+                  style={styles.mapWebView}
+                  originWhitelist={['*']}
+                  source={{ html: buildMapHtml(mapPoints) }}
+                />
+              </View>
             )}
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </WaterScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-
   clearAllBtn: {
-    backgroundColor: 'rgba(254,202,202,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(254,202,202,0.45)',
-    borderRadius: 20,
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: 11,
     paddingVertical: 7,
-    marginLeft: 12,
+    marginLeft: 8,
   },
-  clearAllText: { color: '#fecaca', fontSize: 13, fontWeight: '700' },
+  clearAllText: { color: colors.danger, fontSize: 12, fontWeight: '800' },
 
   centred: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
+    padding: 28,
     gap: 12,
   },
-  centredText: { color: '#64748b', fontSize: 14, marginTop: 8 },
-  emptyIconWrap: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    backgroundColor: '#dbeafe',
+  centredText: { color: colors.body, fontSize: 14, marginTop: 8, fontWeight: '600' },
+  emptyCard: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
+    padding: 28,
+    borderRadius: radius.xl,
+    backgroundColor: colors.glassStrong,
   },
-  emptyIcon: { fontSize: 52 },
-  emptyTitle: { fontSize: 19, fontWeight: '800', color: '#1e293b' },
+  emptyIcon: { marginBottom: 18 },
+  emptyTitle: { fontSize: 19, fontWeight: '900', color: colors.ink, marginBottom: 8 },
   emptySub: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.body,
     textAlign: 'center',
     lineHeight: 22,
   },
 
-  listContent: { padding: 16, paddingBottom: 110 },
+  listContent: { paddingHorizontal: 16, paddingTop: 10 },
+  cardWrap: { marginBottom: 14 },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
     flexDirection: 'row',
     padding: 10,
-    shadowColor: '#1e3a8a',
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
   },
   thumbnail: {
     width: 92,
-    borderRadius: 14,
-    backgroundColor: '#e2e8f0',
-    minHeight: 120,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    minHeight: 124,
   },
   cardContent: { flex: 1, paddingLeft: 12, paddingVertical: 2 },
   cardDateRow: {
@@ -546,22 +598,28 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   dateChip: {
-    backgroundColor: '#eef2ff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primarySoft,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   timeChip: {
-    backgroundColor: '#f1f5f9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(11,49,66,0.06)',
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  cardDate: { fontSize: 11.5, color: '#3730a3', fontWeight: '700' },
-  cardTime: { fontSize: 11.5, color: '#475569', fontWeight: '600' },
+  cardDate: { fontSize: 11.5, color: colors.primaryDark, fontWeight: '800' },
+  cardTime: { fontSize: 11.5, color: colors.body, fontWeight: '700' },
   cardText: {
     fontSize: 13.5,
-    color: '#1e293b',
+    color: colors.ink,
     lineHeight: 20,
     flex: 1,
     marginBottom: 8,
@@ -570,32 +628,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e2e8f0',
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
     paddingTop: 8,
   },
-  cardChars: { fontSize: 11, color: '#94a3b8', fontWeight: '600' },
+  charsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cardChars: { fontSize: 11, color: colors.muted, fontWeight: '700' },
   locationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     alignSelf: 'flex-start',
-    backgroundColor: '#dbeafe',
-    borderRadius: 20,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,
     marginBottom: 8,
   },
-  locationBadgeText: { fontSize: 11, color: '#1d4ed8', fontWeight: '700' },
+  locationBadgeText: { fontSize: 11, color: colors.primaryDark, fontWeight: '800' },
   deleteBtn: {
-    backgroundColor: '#fee2e2',
-    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  deleteBtnText: { fontSize: 12, color: '#dc2626', fontWeight: '700' },
+  deleteBtnText: { fontSize: 12, color: colors.danger, fontWeight: '800' },
 
   fabWrap: {
     position: 'absolute',
-    right: 20,
-    bottom: 24,
+    right: 22,
     width: 60,
     height: 60,
     alignItems: 'center',
@@ -606,47 +670,46 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#1d4ed8',
+    backgroundColor: colors.primary,
   },
   fab: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#1d4ed8',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#1d4ed8',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    borderWidth: 2.5,
+    borderColor: colors.white,
   },
-  fabIcon: { fontSize: 26 },
+  fabFill: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 30,
+  },
   fabBadge: {
     position: 'absolute',
-    top: -2,
-    right: -2,
+    top: -5,
+    right: -5,
     minWidth: 22,
     height: 22,
     borderRadius: 11,
     paddingHorizontal: 5,
-    backgroundColor: '#ef4444',
+    backgroundColor: colors.coral,
     borderWidth: 2,
-    borderColor: '#f8fafc',
+    borderColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fabBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  fabBadgeText: { color: colors.white, fontSize: 11, fontWeight: '800' },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.55)',
+    backgroundColor: colors.overlay,
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    backgroundColor: colors.waterTop,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     height: '92%',
     flex: 0,
     overflow: 'hidden',
@@ -656,7 +719,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#cbd5e1',
+    backgroundColor: 'rgba(10,162,184,0.35)',
     marginTop: 10,
   },
   modalHeader: {
@@ -664,113 +727,99 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    paddingVertical: 14,
   },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
+  modalTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  modalTitle: { fontSize: 18, fontWeight: '900', color: colors.ink, flexShrink: 1 },
   modalClose: {
-    fontSize: 15,
-    color: '#475569',
-    fontWeight: '700',
-    backgroundColor: '#f1f5f9',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    textAlign: 'center',
-    lineHeight: 32,
-    overflow: 'hidden',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  modalContent: { padding: 20 },
+  modalContent: { paddingHorizontal: 20, paddingBottom: 20 },
   modalImage: {
     width: '100%',
     height: 210,
-    borderRadius: 18,
-    backgroundColor: '#e2e8f0',
+    borderRadius: radius.lg,
+    backgroundColor: colors.primarySoft,
     marginBottom: 14,
   },
   modalMeta: {
-    backgroundColor: '#eef2ff',
-    borderRadius: 14,
+    flexDirection: 'row',
+    gap: 16,
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  modalMetaText: { fontSize: 13, color: '#3730a3', fontWeight: '600' },
+  modalMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  modalMetaText: { fontSize: 13, color: colors.primaryDeep, fontWeight: '700' },
   modalLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#dbeafe',
-    borderRadius: 14,
+    gap: 6,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
     padding: 12,
     marginBottom: 18,
   },
-  modalLocationText: { fontSize: 13, color: '#1d4ed8', fontWeight: '600', flexShrink: 1 },
-  modalLocationLink: { fontSize: 13, color: '#1d4ed8', fontWeight: '800', marginLeft: 8 },
+  modalLocationText: { fontSize: 13, color: colors.primaryDeep, fontWeight: '700', flex: 1 },
+  modalLocationLink: { fontSize: 13, color: colors.primaryDark, fontWeight: '900' },
   mapModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.55)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
-    padding: 20,
+    padding: 18,
   },
   mapModalSheet: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
+    backgroundColor: colors.waterTop,
+    borderRadius: radius.xl,
     height: '72%',
     overflow: 'hidden',
   },
+  mapFrame: {
+    flex: 1,
+    marginHorizontal: 10,
+    marginBottom: 10,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
   mapWebView: { flex: 1 },
+  modalSectionRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   modalSectionTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#334155',
-    marginBottom: 8,
+    color: colors.body,
   },
   modalTextInput: {
     minHeight: 160,
     borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    borderRadius: 16,
+    borderColor: colors.inputBorder,
+    borderRadius: radius.md,
     padding: 14,
     fontSize: 14,
-    color: '#0f172a',
+    color: colors.ink,
     lineHeight: 22,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.white,
   },
   modalCharCount: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.muted,
     textAlign: 'right',
     marginTop: 6,
     marginBottom: 8,
+    fontWeight: '600',
   },
   modalActions: {
     flexDirection: 'row',
     gap: 12,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: colors.line,
+    backgroundColor: colors.glassStrong,
   },
-  modalCancelBtn: {
-    flex: 1,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  modalCancelText: { color: '#64748b', fontSize: 15, fontWeight: '700' },
-  modalSaveBtn: {
-    flex: 2,
-    backgroundColor: '#1d4ed8',
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    shadowColor: '#1d4ed8',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-  },
-  modalSaveText: { color: '#fff', fontSize: 15, fontWeight: '800' },
 });

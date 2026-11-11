@@ -1,51 +1,26 @@
 import React from 'react';
-import { Platform, Text } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import HomeStack from './HomeStack';
 import GuideStack from './GuideStack';
 import ScanStack from './ScanStack';
 import AssistantScreen from '../screens/AssistantScreen';
 import ScanHistoryScreen from '../screens/ScanHistoryScreen';
+import FloatingTabBar from './FloatingTabBar';
+import { colors } from '../theme/theme';
 
 const Tab = createBottomTabNavigator();
 
-const ICONS: Record<string, { active: string; inactive: string }> = {
-  Home:      { active: '🏠', inactive: '🏡' },
-  Assistant: { active: '🤖', inactive: '🧠' },
-  Scan:      { active: '📷', inactive: '🔍' },
-  History:   { active: '🕒', inactive: '📜' },
-  Guide:     { active: '📘', inactive: '📗' },
-};
-
-const TAB_LABELS: Record<string, string> = {
-  Home:      'Trang Chủ',
-  Assistant: 'Trợ lý',
-  Scan:      'Quét',
-  History:   'Lịch sử',
-  Guide:     'Hướng dẫn',
-};
+const renderTabBar = (props: BottomTabBarProps) => <FloatingTabBar {...props} />;
 
 function BottomTabs() {
   return (
     <Tab.Navigator
       initialRouteName="Home"
-      screenOptions={({ route }) => ({
+      tabBar={renderTabBar}
+      screenOptions={{
         headerShown: false,
-        tabBarLabel: TAB_LABELS[route.name] ?? route.name,
-        tabBarActiveTintColor: '#1f6feb',
-        tabBarInactiveTintColor: '#6b7280',
-        tabBarStyle: {
-          height: Platform.OS === 'ios' ? 85 : 60,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-        },
-        tabBarIcon: ({ focused }) => (
-          <Text style={{ fontSize: 20 }}>
-            {focused
-              ? ICONS[route.name]?.active
-              : ICONS[route.name]?.inactive}
-          </Text>
-        ),
-      })}
+        sceneStyle: { backgroundColor: colors.waterTop },
+      }}
     >
       <Tab.Screen name="Home" component={HomeStack} />
       <Tab.Screen name="Assistant" component={AssistantScreen} />

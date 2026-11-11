@@ -3,7 +3,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,8 +11,15 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../navigation/RootStack';
 import { getStorageValue, setStorageValue } from '../storage/storage';
+import WaterScreen from '../components/water/WaterScreen';
+import FloatingCard from '../components/water/FloatingCard';
+import IconBubble from '../components/ui/IconBubble';
+import GradientButton from '../components/ui/GradientButton';
+import AppIcon from '../components/ui/AppIcon';
+import { colors, gradients, radius } from '../theme/theme';
 
 const STORAGE_KEY = '@user_name';
 
@@ -21,8 +27,10 @@ type NameInputNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Na
 
 function NameInputScreen() {
   const navigation = useNavigation<NameInputNavigationProp>();
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     async function loadName() {
@@ -59,79 +67,95 @@ function NameInputScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <WaterScreen style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Đang chuẩn bị...</Text>
-      </View>
+      </WaterScreen>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Nhập tên của bạn</Text>
-          <Text style={styles.subtitle}>
-            Tên này sẽ được lưu lại để cá nhân hóa trải nghiệm của bạn.
-          </Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Tên của bạn"
-            placeholderTextColor="#9ca3af"
-            style={styles.input}
-          />
-          <Pressable style={styles.button} onPress={handleSave}>
-            <Text style={styles.buttonText}>Lưu và tiếp tục</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <WaterScreen>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <FloatingCard style={styles.card} amplitude={5}>
+            <IconBubble icon="water" size={64} rounded="circle" gradient={gradients.primary} style={styles.logo} />
+            <Text style={styles.eyebrow}>Chào mừng bạn 👋</Text>
+            <Text style={styles.title}>Nhập tên của bạn</Text>
+            <Text style={styles.subtitle}>
+              Tên này sẽ được lưu lại để cá nhân hóa trải nghiệm của bạn.
+            </Text>
+            <View style={[styles.inputWrap, focused && styles.inputWrapFocused]}>
+              <AppIcon name="person-outline" size={20} color={focused ? colors.primary : colors.muted} />
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="Tên của bạn"
+                placeholderTextColor={colors.faint}
+                style={styles.input}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                returnKeyType="done"
+                onSubmitEditing={handleSave}
+              />
+            </View>
+            <GradientButton label="Lưu và tiếp tục" icon="arrow-forward" onPress={handleSave} />
+          </FloatingCard>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </WaterScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#eff6ff' },
-  content: { padding: 20, flexGrow: 1, justifyContent: 'center' },
+  container: { flex: 1 },
+  content: { padding: 22, flexGrow: 1, justifyContent: 'center' },
   loadingContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#eff6ff',
   },
-  loadingText: { color: '#475569', fontSize: 16 },
+  loadingText: { color: colors.body, fontSize: 16, fontWeight: '600' },
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
+    padding: 26,
+    borderRadius: radius.xl,
+    backgroundColor: colors.glassStrong,
   },
-  title: { fontSize: 26, fontWeight: '800', color: '#1d4ed8', marginBottom: 12 },
-  subtitle: { color: '#475569', fontSize: 15, lineHeight: 22, marginBottom: 24 },
-  input: {
-    height: 52,
-    backgroundColor: '#f8fafc',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#dbeafe',
+  logo: { alignSelf: 'center', marginBottom: 18 },
+  eyebrow: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.primary,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  title: { fontSize: 26, fontWeight: '900', color: colors.ink, marginBottom: 10, textAlign: 'center' },
+  subtitle: { color: colors.body, fontSize: 15, lineHeight: 22, marginBottom: 24, textAlign: 'center' },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    backgroundColor: colors.inputBg,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.inputBorder,
     paddingHorizontal: 16,
-    fontSize: 16,
-    color: '#111827',
     marginBottom: 20,
   },
-  button: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
+  inputWrapFocused: { borderColor: colors.primary, backgroundColor: colors.white },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.ink,
+    marginLeft: 10,
+    paddingVertical: 0,
   },
-  buttonText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
 });
 
 export default NameInputScreen;

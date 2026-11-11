@@ -1,17 +1,30 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Pressable,
+  LayoutChangeEvent,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import AppHeader from '../components/AppHeader';
 import { useNavigation } from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
+import Animated, {
+  FadeInLeft,
+  FadeInRight,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+import AppHeader from '../components/AppHeader';
+import WaterScreen from '../components/water/WaterScreen';
+import FloatingCard from '../components/water/FloatingCard';
+import IconBubble from '../components/ui/IconBubble';
+import PressableScale from '../components/ui/PressableScale';
+import AppIcon from '../components/ui/AppIcon';
+import { useTabBarSpace } from '../navigation/FloatingTabBar';
+import { categoryColors, colors, radius } from '../theme/theme';
+import { GUIDE_ICONS, GUIDE_TAB_ICONS } from '../theme/icons';
 
 type GuideTab = 'cleaning' | 'classification' | 'emergency';
 
@@ -103,135 +116,49 @@ const EMERGENCY_GUIDES: GuideItem[] = [
   },
 ];
 
-const TAB_ACCENTS: Record<GuideTab, { bg: string; fg: string }> = {
-  cleaning: { bg: '#dbeafe', fg: '#1d4ed8' },
-  classification: { bg: '#ede9fe', fg: '#6d28d9' },
-  emergency: { bg: '#fee2e2', fg: '#dc2626' },
+type GuideScreenNavigationProp = NativeStackNavigationProp<any>;
+
+const TABS: { key: GuideTab; label: string }[] = [
+  { key: 'cleaning', label: 'Làm sạch nước' },
+  { key: 'classification', label: 'Phân loại nước' },
+  { key: 'emergency', label: 'Khẩn cấp' },
+];
+
+const GUIDES_BY_TAB: Record<GuideTab, GuideItem[]> = {
+  cleaning: CLEANING_GUIDES,
+  classification: CLASSIFICATION_GUIDES,
+  emergency: EMERGENCY_GUIDES,
 };
 
-type GuideScreenNavigationProp = NativeStackNavigationProp<any>;
+const SEGMENT_PAD = 6;
 
 function GuideScreen() {
   const navigation = useNavigation<GuideScreenNavigationProp>();
+  const tabSpace = useTabBarSpace();
   const [activeTab, setActiveTab] = useState<GuideTab>('cleaning');
+  const [segmentWidth, setSegmentWidth] = useState(0);
+  const direction = useRef<1 | -1>(1);
+  const indicatorX = useSharedValue(0);
 
-  // Create separate width animation values for each tab
-  const tabWidths = React.useRef({
-    cleaning: new Animated.Value(80), // Icon only width
-    classification: new Animated.Value(80),
-    emergency: new Animated.Value(80),
-  }).current;
+  const activeIndex = TABS.findIndex(tab => tab.key === activeTab);
+  const accent = categoryColors[activeTab];
 
-  // Text opacity animations for each tab
-  const textOpacities = React.useRef({
-    cleaning: new Animated.Value(1),
-    classification: new Animated.Value(0),
-    emergency: new Animated.Value(0),
-  }).current;
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: indicatorX.value }],
+  }));
 
-  // Content slide animation
-  const contentSlideAnim = React.useRef(new Animated.Value(0)).current;
-
-  // Initialize active tab width and text opacity
-  React.useEffect(() => {
-    const screenWidth = Dimensions.get('window').width - 32; // Account for padding
-    const collapsedWidth = 80;
-    const expandedWidth = screenWidth - collapsedWidth * 2;
-
-    Animated.timing(tabWidths.cleaning, {
-      toValue: expandedWidth,
-      duration: 400,
-      useNativeDriver: false,
-    }).start();
-
-    Animated.timing(textOpacities.cleaning, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [tabWidths.cleaning, textOpacities.cleaning]);
-
-  const tabs = [
-    { key: 'cleaning' as GuideTab, label: 'Làm sạch nước', icon: '🧼' },
-    { key: 'classification' as GuideTab, label: 'Phân loại nước', icon: '🔍' },
-    { key: 'emergency' as GuideTab, label: 'Khẩn cấp', icon: '🚨' },
-  ];
-
-  const getCurrentGuides = () => {
-    switch (activeTab) {
-      case 'cleaning':
-        return CLEANING_GUIDES;
-      case 'classification':
-        return CLASSIFICATION_GUIDES;
-      case 'emergency':
-        return EMERGENCY_GUIDES;
-      default:
-        return CLEANING_GUIDES;
-    }
-  };
-
-  const getTabIndex = (tabKey: GuideTab): number => {
-    return tabs.findIndex(tab => tab.key === tabKey);
+  const onSegmentLayout = (e: LayoutChangeEvent) => {
+    const width = (e.nativeEvent.layout.width - SEGMENT_PAD * 2) / TABS.length;
+    setSegmentWidth(width);
+    indicatorX.value = activeIndex * width;
   };
 
   const handleTabPress = (tabKey: GuideTab) => {
-    if (activeTab === tabKey) return;
-
-    const currentTabIndex = getTabIndex(activeTab);
-    const newTabIndex = getTabIndex(tabKey);
-    const slideDirection = newTabIndex > currentTabIndex ? 1 : -1; // 1 for right, -1 for left
-
-    const screenWidth = Dimensions.get('window').width - 32; // Account for padding
-    const collapsedWidth = 80; // Width when showing only icon
-    const expandedWidth = screenWidth - collapsedWidth * 2; // Take remaining space
-
-    // Step 1: Fade out current text
-    Animated.timing(textOpacities[activeTab], {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: false,
-    }).start(() => {
-      // Step 2: Change content immediately
-      setActiveTab(tabKey);
-
-      // Step 3: Prepare slide animation
-      contentSlideAnim.setValue(slideDirection * screenWidth);
-
-      // Step 4: Animate tab widths and slide content simultaneously
-      const widthAnimations = [
-        Animated.timing(tabWidths.cleaning, {
-          toValue: tabKey === 'cleaning' ? expandedWidth : collapsedWidth,
-          duration: 500,
-          useNativeDriver: false,
-        }),
-        Animated.timing(tabWidths.classification, {
-          toValue: tabKey === 'classification' ? expandedWidth : collapsedWidth,
-          duration: 500,
-          useNativeDriver: false,
-        }),
-        Animated.timing(tabWidths.emergency, {
-          toValue: tabKey === 'emergency' ? expandedWidth : collapsedWidth,
-          duration: 500,
-          useNativeDriver: false,
-        }),
-      ];
-
-      const slideAnimation = Animated.timing(contentSlideAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: false,
-      });
-
-      // Run width and slide animations together
-      Animated.parallel([...widthAnimations, slideAnimation]).start(() => {
-        // Step 5: Fade in new text
-        Animated.timing(textOpacities[tabKey], {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: false,
-        }).start();
-      });
-    });
+    if (activeTab === tabKey) { return; }
+    const newIndex = TABS.findIndex(tab => tab.key === tabKey);
+    direction.current = newIndex > activeIndex ? 1 : -1;
+    indicatorX.value = withSpring(newIndex * segmentWidth, { damping: 16, stiffness: 170 });
+    setActiveTab(tabKey);
   };
 
   const handleGuidePress = (guide: GuideItem) => {
@@ -242,227 +169,156 @@ function GuideScreen() {
     });
   };
 
+  const entering = (direction.current === 1 ? FadeInRight : FadeInLeft).duration(380);
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <WaterScreen>
       <AppHeader
         title="Hướng dẫn"
         subtitle="Xử lý và phân tích chất lượng nước"
+        icon="book"
       />
 
-      <View style={styles.tabContainer}>
-        {tabs.map(tab => {
-          const isExpanded = activeTab === tab.key;
-          return (
-            <Animated.View
-              key={tab.key}
-              style={[
-                styles.tab,
-                isExpanded && styles.activeTab,
-                { width: tabWidths[tab.key] },
-              ]}
-            >
-              <Pressable
-                style={[styles.tabButton, isExpanded && styles.activeTabButton]}
-                onPress={() => handleTabPress(tab.key)}
-              >
-                <View style={styles.tabContent}>
-                  <Text
-                    style={[styles.tabIcon, isExpanded && styles.activeTabIcon]}
-                  >
-                    {tab.icon}
-                  </Text>
-                  <Animated.View
-                    style={[
-                      styles.textContainer,
-                      {
-                        opacity: textOpacities[tab.key],
-                        width: textOpacities[tab.key].interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, 120],
-                        }),
-                        transform: [
-                          {
-                            translateX: textOpacities[tab.key].interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [-20, 0],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.tabLabel,
-                        isExpanded && styles.activeTabLabel,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {tab.label}
-                    </Text>
-                  </Animated.View>
-                </View>
-              </Pressable>
-            </Animated.View>
-          );
-        })}
-      </View>
-
-      <Animated.View
-        style={[
-          styles.contentWrapper,
-          {
-            transform: [{ translateX: contentSlideAnim }],
-          },
-        ]}
+      <FloatingCard
+        amplitude={2}
+        index={1}
+        containerStyle={styles.segmentWrap}
+        style={styles.segment}
       >
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-        >
+        <View onLayout={onSegmentLayout} style={styles.segmentInner}>
+          {segmentWidth > 0 && (
+            <Animated.View style={[styles.indicator, { width: segmentWidth }, indicatorStyle]}>
+              <LinearGradient
+                colors={accent.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.indicatorFill}
+              />
+            </Animated.View>
+          )}
+          {TABS.map(tab => {
+            const isActive = activeTab === tab.key;
+            return (
+              <PressableScale
+                key={tab.key}
+                style={styles.segmentItem}
+                onPress={() => handleTabPress(tab.key)}
+                scaleTo={0.92}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={tab.label}
+              >
+                <AppIcon
+                  name={GUIDE_TAB_ICONS[tab.key]}
+                  size={21}
+                  color={isActive ? colors.white : colors.muted}
+                />
+                <Text
+                  style={[styles.segmentLabel, isActive && styles.segmentLabelActive]}
+                  numberOfLines={1}
+                >
+                  {tab.label}
+                </Text>
+              </PressableScale>
+            );
+          })}
+        </View>
+      </FloatingCard>
+
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: tabSpace }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View key={activeTab} entering={entering}>
           <View style={styles.sectionHeader}>
-            <View
-              style={[
-                styles.sectionAccent,
-                { backgroundColor: TAB_ACCENTS[activeTab].fg },
-              ]}
-            />
-            <Text style={styles.sectionTitle}>
-              {tabs.find(tab => tab.key === activeTab)?.label}
-            </Text>
+            <View style={[styles.sectionAccent, { backgroundColor: accent.fg }]} />
+            <Text style={styles.sectionTitle}>{TABS[activeIndex]?.label}</Text>
+            <View style={[styles.countPill, { backgroundColor: accent.soft }]}>
+              <Text style={[styles.countPillText, { color: accent.fg }]}>
+                {GUIDES_BY_TAB[activeTab].length}
+              </Text>
+            </View>
           </View>
 
-          {getCurrentGuides().map(guide => (
-            <Pressable
+          {GUIDES_BY_TAB[activeTab].map((guide, index) => (
+            <FloatingCard
               key={guide.id}
+              index={index}
+              enter={false}
               style={styles.guideCard}
+              containerStyle={styles.guideCardWrap}
               onPress={() => handleGuidePress(guide)}
+              accessibilityLabel={guide.title}
             >
-              <View style={styles.guideHeader}>
-                <View
-                  style={[
-                    styles.guideIconWrap,
-                    { backgroundColor: TAB_ACCENTS[activeTab].bg },
-                  ]}
-                >
-                  <Text style={styles.guideIcon}>{guide.icon}</Text>
-                </View>
-                <View style={styles.guideTextContainer}>
-                  <Text style={styles.guideTitle}>{guide.title}</Text>
-                  <Text style={styles.guideDescription}>
-                    {guide.description}
-                  </Text>
-                </View>
+              <IconBubble
+                icon={GUIDE_ICONS[guide.id] ?? 'water'}
+                gradient={accent.gradient}
+                size={52}
+              />
+              <View style={styles.guideTextContainer}>
+                <Text style={styles.guideTitle}>{guide.title}</Text>
+                <Text style={styles.guideDescription}>{guide.description}</Text>
               </View>
-              <View
-                style={[
-                  styles.arrowWrap,
-                  { backgroundColor: TAB_ACCENTS[activeTab].bg },
-                ]}
-              >
-                <Text
-                  style={[styles.arrowIcon, { color: TAB_ACCENTS[activeTab].fg }]}
-                >
-                  ›
-                </Text>
+              <View style={[styles.arrowWrap, { backgroundColor: accent.soft }]}>
+                <AppIcon name="chevron-forward" size={18} color={accent.fg} />
               </View>
-            </Pressable>
+            </FloatingCard>
           ))}
-        </ScrollView>
-      </Animated.View>
-    </SafeAreaView>
+        </Animated.View>
+      </ScrollView>
+    </WaterScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f1f5f9',
+  flex: { flex: 1 },
+  segmentWrap: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 6,
   },
-  tabContainer: {
+  segment: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.glassStrong,
+  },
+  segmentInner: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    shadowColor: '#1e3a8a',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    padding: SEGMENT_PAD,
   },
-  tab: {
-    height: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 22,
-    marginHorizontal: 2,
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
+  indicator: {
+    position: 'absolute',
+    top: SEGMENT_PAD,
+    bottom: SEGMENT_PAD,
+    left: SEGMENT_PAD,
   },
-  activeTab: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1d4ed8',
-    borderColor: '#1d4ed8',
-    shadowColor: '#1d4ed8',
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  tabButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  activeTabButton: {
-    // backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  tabContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textContainer: {
-    overflow: 'hidden',
-  },
-  tabIcon: {
-    fontSize: 22,
-    color: '#64748b',
-  },
-  activeTabIcon: {
-    color: '#ffffff',
-  },
-  tabLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#64748b',
-    marginLeft: 8,
-  },
-  activeTabLabel: {
-    color: '#ffffff',
-  },
-  content: {
+  indicatorFill: {
     flex: 1,
+    borderRadius: radius.md,
   },
-  contentWrapper: {
+  segmentItem: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
   },
+  segmentLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.muted,
+    marginTop: 4,
+  },
+  segmentLabelActive: { color: colors.white },
   contentContainer: {
-    padding: 20,
-    paddingBottom: 32,
+    paddingHorizontal: 18,
+    paddingTop: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 16,
+    marginLeft: 2,
   },
   sectionAccent: {
     width: 5,
@@ -472,64 +328,44 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#0f172a',
+    fontWeight: '900',
+    color: colors.ink,
   },
+  countPill: {
+    marginLeft: 8,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+  },
+  countPillText: { fontWeight: '800', fontSize: 13 },
+  guideCardWrap: { marginBottom: 14 },
   guideCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
     padding: 14,
-    marginBottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#1e3a8a',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  guideHeader: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  guideIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  guideIcon: {
-    fontSize: 26,
   },
   guideTextContainer: {
     flex: 1,
+    marginLeft: 14,
   },
   guideTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
+    fontWeight: '800',
+    color: colors.ink,
     marginBottom: 3,
   },
   guideDescription: {
     fontSize: 13.5,
-    color: '#64748b',
+    color: colors.muted,
     lineHeight: 20,
   },
   arrowWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
-  },
-  arrowIcon: {
-    fontSize: 22,
-    lineHeight: 26,
-    fontWeight: '600',
   },
 });
 
